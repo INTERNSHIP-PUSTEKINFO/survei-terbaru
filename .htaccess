@@ -1,0 +1,8 @@
+RewriteEngine On
+RewriteBase /survei-nala/
+
+# Route untuk format: /uuid/{uuid}
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^uuid/([a-f0-9]{64})$ index.php?uuid=$1 [L,QSA]
+
