@@ -60,6 +60,11 @@ try {
     $provinces_id = isset($_POST['provinces_id']) ? (int)$_POST['provinces_id'] : 0;
     $regencies_id = isset($_POST['regencies_id']) ? (int)$_POST['regencies_id'] : 0;
     $kesediaan_menjadi_responden = isset($_POST['kesediaan_menjadi_responden']) ? (int)$_POST['kesediaan_menjadi_responden'] : 0;
+    
+    // Pastikan responden_id dari form tersimpan di session jika ada
+    if (isset($_POST['responden_id']) && (int)$_POST['responden_id'] > 0) {
+        $_SESSION['survey_data']['responden_id'] = (int)$_POST['responden_id'];
+    }
 
     // Start transaction
     mysqli_query($koneksi, "START TRANSACTION");

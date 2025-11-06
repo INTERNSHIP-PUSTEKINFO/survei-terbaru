@@ -71,6 +71,52 @@ if (empty($nama) || $usia <= 0 || $usia > 100 || $jenis_kelamin <= 0 || $pendidi
     exit;
 }
 
+// Validasi nomor telepon jika ada (exclude responden_id dari UUID)
+if (!empty($nomor_telepon)) {
+    // Validasi panjang nomor telepon (min 10, max 13)
+    if (strlen($nomor_telepon) < 10 || strlen($nomor_telepon) > 13) {
+        echo json_encode(['status' => 'error', 'message' => 'Nomor telepon harus antara 10-13 angka']);
+        exit;
+    }
+    
+    // Validasi hanya angka
+    if (!preg_match('/^[0-9]+$/', $nomor_telepon)) {
+        echo json_encode(['status' => 'error', 'message' => 'Nomor telepon hanya boleh berisi angka']);
+        exit;
+    }
+    
+    // Cek nomor telepon duplikat (exclude responden_id jika ada dari UUID atau session)
+    $nomor_telepon_esc = mysqli_real_escape_string($koneksi, $nomor_telepon);
+    $responden_id_exclude = 0;
+    
+    // Cek apakah ada responden_id dari UUID (session)
+    if (isset($_SESSION['responden_id_from_uuid']) && $_SESSION['responden_id_from_uuid'] > 0) {
+        $responden_id_exclude = (int)$_SESSION['responden_id_from_uuid'];
+    }
+    
+    // Atau dari session responden_id (untuk autosave)
+    if ($responden_id_exclude <= 0 && isset($_SESSION['responden_id']) && $_SESSION['responden_id'] > 0) {
+        $responden_id_exclude = (int)$_SESSION['responden_id'];
+    }
+    
+    // Atau dari surveyData (jika ada responden_id di form)
+    if ($responden_id_exclude <= 0 && isset($surveyData['responden_id']) && (int)$surveyData['responden_id'] > 0) {
+        $responden_id_exclude = (int)$surveyData['responden_id'];
+    }
+    
+    $check_phone = "SELECT id FROM respondens WHERE nomor_telepon = '$nomor_telepon_esc' AND status = 1";
+    if ($responden_id_exclude > 0) {
+        $check_phone .= " AND id != $responden_id_exclude";
+    }
+    $check_phone .= " LIMIT 1";
+    
+    $result_check = mysqli_query($koneksi, $check_phone);
+    if ($result_check && mysqli_num_rows($result_check) > 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Nomor telepon ini sudah digunakan. Silakan gunakan nomor telepon yang lain.']);
+        exit;
+    }
+}
+
 // Start transaction
  $db->runSQL("START TRANSACTION");
 

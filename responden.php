@@ -5,7 +5,6 @@ ob_start();
 require_once 'db.php';
 $db = new DB();
 
-// Fetch data untuk dropdown
 $pendidikan = $db->getALL("SELECT * FROM pendidikan WHERE status = 1 ORDER BY id ASC");
 if (!is_array($pendidikan)) {
     $pendidikan = array();
@@ -31,20 +30,16 @@ if (!is_array($regencies)) {
     $regencies = array();
 }
 
-// Fetch survey untuk header/logo (gunakan survei_id = 4 sebagai default)
 $survei = $db->getITEM("SELECT * FROM survei WHERE id = 4");
 if (!$survei) {
     die("Survey tidak ditemukan.");
 }
 
-// Override judul untuk form responden
 $survei['judul'] = "Formulir Seleksi Responden Survei";
-
-// Override deskripsi untuk form responden (akan digunakan di layout.php)
 $survey_description = "Kami sedang melaksanakan survei untuk mengumpulkan insight dari berbagai kalangan. Silakan isi data berikut untuk membantu kami menentukan kesesuaian Anda sebagai responden. Semua informasi akan dijaga kerahasiaannya sesuai dengan kebijakan privasi kami.";
 
-// Start building content
 $content = '<form id="respondenForm" method="POST" action="process_responden.php">';
+$content .= '<input type="hidden" name="kesediaan_menjadi_responden" value="1">';
 
 $content .= '
 <div id="part1">
@@ -53,21 +48,18 @@ $content .= '
         Mohon lengkapi data diri di bawah ini dengan jujur.
     </div>';
 
-// Nama
 $content .= '
     <div class="question-card">
         <div class="question-title">Nama Lengkap</div>
         <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap Anda" maxlength="100" pattern="[A-Za-z\s]+">
     </div>';
 
-// Usia
 $content .= '
     <div class="question-card">
         <div class="question-title">Usia <span class="required">*</span></div>
-        <input type="number" id="usia" name="usia" placeholder="Masukkan usia Anda" min="1" max="100" required>
+        <input type="number" id="usia" name="usia" placeholder="Masukkan usia Anda" min="1" max="100" maxlength="3" required>
     </div>';
 
-// Jenis Kelamin
 $content .= '
     <div class="question-card">
         <div class="question-title">Jenis Kelamin <span class="required">*</span></div>
@@ -83,7 +75,6 @@ $content .= '
         </div>
     </div>';
 
-// Pendidikan
 $content .= '
     <div class="question-card">
         <div class="question-title">Pendidikan Terakhir <span class="required">*</span></div>
@@ -101,7 +92,6 @@ $content .= '
         </div>
     </div>';
 
-// Pekerjaan
 $content .= '
     <div class="question-card">
         <div class="question-title">Pekerjaan Saat Ini <span class="required">*</span></div>
@@ -122,7 +112,6 @@ $content .= '
         </div>
     </div>';
 
-// Penghasilan
 $content .= '
     <div class="question-card">
         <div class="question-title">Penghasilan Rata-rata per Bulan <span class="required">*</span></div>
@@ -143,7 +132,6 @@ $content .= '
         </div>
     </div>';
 
-// Nomor Telepon
 $content .= '
     <div class="question-card">
         <div class="question-title">Nomor Telepon <span class="required">*</span></div>
@@ -151,7 +139,6 @@ $content .= '
         <div id="nomor_telepon_error" style="color: #d32f2f; font-size: 12px; margin-top: 5px; display: none;"></div>
     </div>';
 
-// Provinsi
 $content .= '
     <div class="question-card" id="provinces_card">
         <div class="question-title">Provinsi <span class="required">*</span></div>
@@ -169,7 +156,6 @@ $content .= '
         </div>
     </div>';
 
-// Kabupaten/Kota
 $content .= '
     <div class="question-card" id="regencies_card">
         <div class="question-title">Kabupaten/Kota <span class="required">*</span></div>
@@ -187,23 +173,6 @@ $content .= '
         </div>
     </div>';
 
-// Ketersediaan Menjadi Responden
-$content .= '
-    <div class="question-card">
-        <div class="question-title">Ketersediaan Menjadi Responden Survei Selanjutnya <span class="required">*</span></div>
-        <div class="radio-group">
-            <div class="radio-option">
-                <input type="radio" id="bersedia" name="kesediaan_menjadi_responden" value="1" required>
-                <label for="bersedia">Bersedia</label>
-            </div>
-            <div class="radio-option">
-                <input type="radio" id="tidak_bersedia" name="kesediaan_menjadi_responden" value="2" required>
-                <label for="tidak_bersedia">Tidak Bersedia</label>
-            </div>
-        </div>
-    </div>';
-
-// Submit button
 $content .= '
     <div style="text-align: center; margin-top: 20px;">
         <button type="button" class="submit-btn" id="submitRespondenBtn">Kirim Data</button>
@@ -212,7 +181,6 @@ $content .= '
 
 $content .= '</form>';
 
-// Success message akan di-override di layout.php, tapi kita tambahkan yang khusus untuk responden
 $content .= '
 <div id="successMessageResponden" class="success-message" style="display: none;">
     <div class="success-icon">✓</div>
@@ -220,15 +188,11 @@ $content .= '
     <p>Terima kasih telah mengisi data diri Anda. Data yang Anda berikan telah berhasil disimpan.</p>
 </div>';
 
-// Include layout
 include 'layout.php';
 ?>
 
 <script>
-// Copy JavaScript dari index.php untuk validasi dan autocomplete
-// (akan di-include di layout.php)
 document.addEventListener("DOMContentLoaded", function() {
-    // Validasi nama: hanya huruf dan spasi
     const namaInput = document.getElementById("nama");
     if (namaInput) {
         namaInput.addEventListener("input", function() {
@@ -239,39 +203,82 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Validasi usia: maksimal 100
     const usiaInput = document.getElementById("usia");
     if (usiaInput) {
+        usiaInput.setAttribute("max", "100");
+        usiaInput.setAttribute("maxlength", "3");
+        
         usiaInput.addEventListener("input", function() {
-            // Hapus karakter selain angka
             this.value = this.value.replace(/[^0-9]/g, "");
-            // Batasi maksimal 100
             const usiaValue = parseInt(this.value) || 0;
             if (usiaValue > 100) {
                 this.value = 100;
             }
         });
+        
+        usiaInput.addEventListener("change", function() {
+            const usiaValue = parseInt(this.value) || 0;
+            if (usiaValue > 100) {
+                this.value = 100;
+            } else if (usiaValue < 1 && this.value !== "") {
+                this.value = 1;
+            }
+        });
+        
+        usiaInput.addEventListener("blur", function() {
+            const usiaValue = parseInt(this.value) || 0;
+            if (usiaValue > 100) {
+                this.value = 100;
+            } else if (usiaValue < 1 && this.value !== "") {
+                this.value = 1;
+            }
+        });
+        
+        usiaInput.addEventListener("keydown", function(e) {
+            const currentValue = this.value;
+            const key = e.key;
+            if (key === "Backspace" || key === "Delete" || key === "Tab" || 
+                key.indexOf("Arrow") === 0 || key === "Home" || key === "End" || 
+                e.ctrlKey || e.metaKey) {
+                return;
+            }
+            if (parseInt(currentValue) >= 100 && /[0-9]/.test(key)) {
+                e.preventDefault();
+                return;
+            }
+            if (/[0-9]/.test(key)) {
+                const newValue = parseInt(currentValue + key) || 0;
+                if (newValue > 100) {
+                    e.preventDefault();
+                }
+            }
+        });
+        
+        usiaInput.addEventListener("paste", function(e) {
+            e.preventDefault();
+            const pastedData = (e.clipboardData || window.clipboardData).getData("text");
+            const numericData = pastedData.replace(/[^0-9]/g, "");
+            const numericValue = parseInt(numericData) || 0;
+            if (numericValue > 100) {
+                this.value = 100;
+            } else {
+                this.value = numericValue;
+            }
+        });
     }
 
-    // Validasi nomor telepon: cek duplikat (copy dari index.php)
     const nomorTeleponInput = document.getElementById("nomor_telepon");
     const nomorTeleponError = document.getElementById("nomor_telepon_error");
     let phoneCheckTimeout = null;
-    let isPhoneValid = false;
 
     if (nomorTeleponInput && nomorTeleponError) {
-        // Validasi: hanya angka, minimal 10, maksimal 13
         nomorTeleponInput.addEventListener("input", function() {
-            // Hapus karakter selain angka
             this.value = this.value.replace(/[^0-9]/g, "");
-            
-            // Batasi maksimal 13 karakter
             if (this.value.length > 13) {
                 this.value = this.value.substring(0, 13);
             }
         });
         
-        // Cek nomor telepon saat user selesai mengetik (debounce)
         nomorTeleponInput.addEventListener("input", function() {
             clearTimeout(phoneCheckTimeout);
             const phoneValue = this.value.trim();
@@ -279,19 +286,15 @@ document.addEventListener("DOMContentLoaded", function() {
             nomorTeleponError.style.display = "none";
             nomorTeleponError.textContent = "";
             nomorTeleponInput.style.borderColor = "";
-            isPhoneValid = false;
 
-            // Validasi panjang minimal 10
             if (phoneValue.length > 0 && phoneValue.length < 10) {
                 nomorTeleponError.textContent = "Nomor telepon minimal 10 angka";
                 nomorTeleponError.style.display = "block";
                 nomorTeleponInput.style.borderColor = "#d32f2f";
                 nomorTeleponInput.setCustomValidity("Nomor telepon minimal 10 angka");
-                isPhoneValid = false;
                 return;
             }
 
-            // Jika kosong atau belum mencapai minimal, tidak perlu cek duplikat
             if (phoneValue.length === 0 || phoneValue.length < 10) {
                 return;
             }
@@ -303,13 +306,11 @@ document.addEventListener("DOMContentLoaded", function() {
 
         nomorTeleponInput.addEventListener("blur", function() {
             const phoneValue = this.value.trim();
-            // Validasi panjang minimal saat blur
             if (phoneValue.length > 0 && phoneValue.length < 10) {
                 nomorTeleponError.textContent = "Nomor telepon minimal 10 angka";
                 nomorTeleponError.style.display = "block";
                 nomorTeleponInput.style.borderColor = "#d32f2f";
                 nomorTeleponInput.setCustomValidity("Nomor telepon minimal 10 angka");
-                isPhoneValid = false;
                 return;
             }
             if (phoneValue.length >= 10) {
@@ -321,6 +322,11 @@ document.addEventListener("DOMContentLoaded", function() {
     function checkPhoneNumber(phoneNumber) {
         const formData = new FormData();
         formData.append("nomor_telepon", phoneNumber);
+        
+        const respondenIdInput = document.querySelector("input[name=\"responden_id\"]");
+        if (respondenIdInput && respondenIdInput.value) {
+            formData.append("responden_id", respondenIdInput.value);
+        }
 
         fetch("check_phone.php", {
             method: "POST",
@@ -333,12 +339,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 nomorTeleponError.style.display = "block";
                 nomorTeleponInput.style.borderColor = "#d32f2f";
                 nomorTeleponInput.setCustomValidity(data.message);
-                isPhoneValid = false;
             } else if (data.status === "available") {
                 nomorTeleponError.style.display = "none";
                 nomorTeleponInput.style.borderColor = "";
                 nomorTeleponInput.setCustomValidity("");
-                isPhoneValid = true;
             }
         })
         .catch(error => {
@@ -346,19 +350,16 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Submit button dengan captcha
     const submitBtn = document.getElementById("submitRespondenBtn");
     if (submitBtn) {
         submitBtn.addEventListener("click", function() {
             const form = document.getElementById("respondenForm");
             
-            // Validasi form
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
             }
 
-            // Cek nomor telepon jika sudah diisi
             if (nomorTeleponInput && nomorTeleponInput.value.trim() !== '') {
                 if (!nomorTeleponInput.checkValidity()) {
                     alert(nomorTeleponError.textContent || "Nomor telepon tidak valid");
@@ -367,22 +368,15 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
             }
 
-            // Tampilkan modal captcha
             generateCaptcha();
             document.getElementById('captchaModal').style.display = 'block';
         });
     }
 
-    // Override captcha verification untuk form responden
     const existingVerifyBtn = document.getElementById('verifyAndSubmitBtn');
     if (existingVerifyBtn) {
-        // Simpan handler asli untuk form survey
-        const originalHandler = existingVerifyBtn.onclick;
-        
-        // Cek apakah ini form responden
         const respondenForm = document.getElementById('respondenForm');
         if (respondenForm) {
-            // Override untuk form responden
             existingVerifyBtn.onclick = function() {
                 const userAnswer = parseInt(document.getElementById('captchaAnswer').value);
                 
@@ -391,7 +385,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     return;
                 }
 
-                // Submit form responden
                 const form = document.getElementById('respondenForm');
                 const formData = new FormData(form);
                 formData.append('captcha_verified', 'true');
@@ -405,7 +398,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (data.status === 'success') {
                         document.getElementById('captchaModal').style.display = 'none';
                         document.getElementById('respondenForm').style.display = 'none';
-                        // Tampilkan success message (gunakan ID yang sesuai)
                         const successMsg = document.getElementById('successMessageResponden') || document.getElementById('successMessage');
                         if (successMsg) {
                             successMsg.style.display = 'block';
@@ -429,189 +421,327 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
-    // Autocomplete untuk Pendidikan, Provinsi, dan Kabupaten
-    // (Menggunakan logika yang sama dengan index.php)
-    
     function closeAllDropdowns(exceptId = null) {
-        const dropdowns = document.querySelectorAll('.autocomplete-dropdown');
-        dropdowns.forEach(d => {
-            if (d.id !== exceptId) d.style.display = 'none';
+        const dropdowns = document.querySelectorAll(".autocomplete-dropdown");
+        dropdowns.forEach(function(d) {
+            if (d.id !== exceptId) {
+                d.style.display = "none";
+            }
         });
     }
 
-    // Autocomplete Pendidikan
-    const pendidikanInput = document.getElementById("pendidikan_text");
-    const pendidikanDropdown = document.getElementById("pendidikan_dropdown");
-    const pendidikanHidden = document.getElementById("pendidikan_id");
+    const input = document.getElementById("pendidikan_text");
+    const dropdown = document.getElementById("pendidikan_dropdown");
+    const hiddenInput = document.getElementById("pendidikan_id");
+
+    function showPendidikanDropdown() {
+        if (!input || !dropdown) return;
+        closeAllDropdowns("pendidikan_dropdown");
+        const items = dropdown.getElementsByClassName("dropdown-item");
+        for (let i = 0; i < items.length; i++) {
+            items[i].style.display = "block";
+        }
+        dropdown.style.display = "block";
+        filterOptions();
+    }
+
+    if (input && dropdown && hiddenInput) {
+        input.addEventListener("focus", function(e) {
+            e.stopPropagation();
+            setTimeout(showPendidikanDropdown, 10);
+        });
+
+        input.addEventListener("click", function(e) {
+            e.stopPropagation();
+            setTimeout(showPendidikanDropdown, 10);
+        });
+        
+        input.addEventListener("input", function() {
+            showPendidikanDropdown();
+        });
+
+        document.addEventListener("click", function(e) {
+            const target = e.target;
+            if (input && dropdown) {
+                if (!input.contains(target) && !dropdown.contains(target)) {
+                    dropdown.style.display = "none";
+                }
+            }
+        });
+        
+        dropdown.addEventListener("click", function(e) {
+            e.stopPropagation();
+            if (e.target.classList.contains("dropdown-item")) {
+                input.value = e.target.getAttribute("data-text");
+                hiddenInput.value = e.target.getAttribute("data-value");
+                dropdown.style.display = "none";
+            }
+        });
+    }
     
-    if (pendidikanInput && pendidikanDropdown && pendidikanHidden) {
-        function filterPendidikan() {
-            const filter = pendidikanInput.value.toLowerCase();
-            const items = pendidikanDropdown.getElementsByClassName("dropdown-item");
+    function filterOptions() {
+        const input = document.getElementById("pendidikan_text");
+        const dropdown = document.getElementById("pendidikan_dropdown");
+
+        if (!input || !dropdown) return;
+
+        const filterValue = input.value.toLowerCase();
+        const items = dropdown.getElementsByClassName("dropdown-item");
+
+        if (!filterValue || filterValue.trim() === "") {
             for (let i = 0; i < items.length; i++) {
-                const text = items[i].getAttribute("data-text").toLowerCase();
-                items[i].style.display = text.includes(filter) ? "block" : "none";
+                items[i].style.display = "block";
+            }
+            return;
+        }
+
+        for (let i = 0; i < items.length; i++) {
+            const text = items[i].getAttribute("data-text").toLowerCase();
+            if (text.includes(filterValue)) {
+                items[i].style.display = "block";
+            } else {
+                items[i].style.display = "none";
             }
         }
-        
-        pendidikanInput.addEventListener("focus", () => {
-            closeAllDropdowns("pendidikan_dropdown");
-            pendidikanDropdown.style.display = "block";
-            filterPendidikan();
-        });
-        
-        pendidikanInput.addEventListener("input", () => {
-            closeAllDropdowns("pendidikan_dropdown");
-            pendidikanDropdown.style.display = "block";
-            filterPendidikan();
-        });
-        
-        pendidikanDropdown.addEventListener("click", (e) => {
-            if (e.target.classList.contains("dropdown-item")) {
-                pendidikanInput.value = e.target.getAttribute("data-text");
-                pendidikanHidden.value = e.target.getAttribute("data-value");
-                pendidikanDropdown.style.display = "none";
-            }
-        });
     }
 
-    // Autocomplete Provinsi
     const provincesInput = document.getElementById("provinces_text");
     const provincesDropdown = document.getElementById("provinces_dropdown");
-    const provincesHidden = document.getElementById("provinces_id");
-    
-    if (provincesInput && provincesDropdown && provincesHidden) {
-        function filterProvinces() {
-            const filter = provincesInput.value.toLowerCase();
+    const provincesHiddenInput = document.getElementById("provinces_id");
+
+    if (provincesInput && provincesDropdown && provincesHiddenInput) {
+        provincesInput.addEventListener("focus", function(e) {
+            e.stopPropagation();
+            closeAllDropdowns("provinces_dropdown");
             const items = provincesDropdown.getElementsByClassName("dropdown-item");
             for (let i = 0; i < items.length; i++) {
-                const text = items[i].getAttribute("data-text").toLowerCase();
-                items[i].style.display = text.includes(filter) ? "block" : "none";
+                items[i].style.display = "block";
             }
-        }
-        
-        provincesInput.addEventListener("focus", () => {
-            closeAllDropdowns("provinces_dropdown");
             provincesDropdown.style.display = "block";
-            filterProvinces();
+            filterProvincesOptions();
         });
-        
-        provincesInput.addEventListener("input", () => {
+
+        provincesInput.addEventListener("click", function(e) {
+            e.stopPropagation();
             closeAllDropdowns("provinces_dropdown");
+            const items = provincesDropdown.getElementsByClassName("dropdown-item");
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.display = "block";
+            }
             provincesDropdown.style.display = "block";
-            filterProvinces();
+            filterProvincesOptions();
+        });
+
+        provincesInput.addEventListener("input", function() {
             if (provincesInput.value.trim() === "") {
-                provincesHidden.value = "";
+                provincesHiddenInput.value = "";
                 provincesInput.removeAttribute("data-province-code");
-                document.getElementById("regencies_text").value = "";
-                document.getElementById("regencies_id").value = "";
+                const regenciesInput = document.getElementById("regencies_text");
+                const regenciesHiddenInput = document.getElementById("regencies_id");
+                if (regenciesInput && regenciesHiddenInput) {
+                    regenciesInput.value = "";
+                    regenciesHiddenInput.value = "";
+                }
             }
+            closeAllDropdowns("provinces_dropdown");
+            const items = provincesDropdown.getElementsByClassName("dropdown-item");
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.display = "block";
+            }
+            provincesDropdown.style.display = "block";
+            filterProvincesOptions();
         });
-        
-        provincesDropdown.addEventListener("click", (e) => {
+
+        let clickOutsideHandler = function(e) {
+            const target = e.target;
+            if (provincesInput && provincesDropdown) {
+                if (!provincesInput.contains(target) && !provincesDropdown.contains(target)) {
+                    setTimeout(function() {
+                        if (provincesDropdown && provincesDropdown.style.display === "block") {
+                            provincesDropdown.style.display = "none";
+                        }
+                    }, 50);
+                }
+            }
+        };
+        document.addEventListener("click", clickOutsideHandler, true);
+
+        provincesDropdown.addEventListener("click", function(e) {
+            e.stopPropagation();
             if (e.target.classList.contains("dropdown-item")) {
-                const oldCode = provincesInput.getAttribute("data-province-code");
-                const newCode = e.target.getAttribute("data-province-code");
+                const oldProvinceCode = provincesInput.getAttribute("data-province-code");
+                const newProvinceCode = e.target.getAttribute("data-province-code");
+                
                 provincesInput.value = e.target.getAttribute("data-text");
-                provincesHidden.value = e.target.getAttribute("data-value");
-                provincesInput.setAttribute("data-province-code", newCode);
+                provincesHiddenInput.value = e.target.getAttribute("data-value");
+                provincesInput.setAttribute("data-province-code", newProvinceCode);
                 provincesDropdown.style.display = "none";
-                if (oldCode !== newCode) {
-                    document.getElementById("regencies_text").value = "";
-                    document.getElementById("regencies_id").value = "";
+                
+                if (oldProvinceCode !== newProvinceCode) {
+                    const regenciesInput = document.getElementById("regencies_text");
+                    const regenciesHiddenInput = document.getElementById("regencies_id");
+                    if (regenciesInput && regenciesHiddenInput) {
+                        regenciesInput.value = "";
+                        regenciesHiddenInput.value = "";
+                    }
                 }
             }
         });
     }
 
-    // Autocomplete Kabupaten/Kota
+    function filterProvincesOptions() {
+        const provincesInput = document.getElementById("provinces_text");
+        const provincesDropdown = document.getElementById("provinces_dropdown");
+        
+        if (!provincesInput || !provincesDropdown) return;
+        
+        const filterValue = provincesInput.value.toLowerCase();
+        const items = provincesDropdown.getElementsByClassName("dropdown-item");
+        
+        if (!filterValue || filterValue.trim() === "") {
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.display = "block";
+            }
+            return;
+        }
+        
+        for (let i = 0; i < items.length; i++) {
+            const text = items[i].getAttribute("data-text").toLowerCase();
+            if (text.includes(filterValue)) {
+                items[i].style.display = "block";
+            } else {
+                items[i].style.display = "none";
+            }
+        }
+    }
+
     const regenciesInput = document.getElementById("regencies_text");
     const regenciesDropdown = document.getElementById("regencies_dropdown");
-    const regenciesHidden = document.getElementById("regencies_id");
-    
-    // Simpan original HTML untuk restore jika perlu
-    let originalRegenciesHTML = null;
-    if (regenciesDropdown) {
-        originalRegenciesHTML = regenciesDropdown.innerHTML;
-    }
-    
-    if (regenciesInput && regenciesDropdown && regenciesHidden) {
-        function filterRegencies() {
-            const filter = regenciesInput.value.toLowerCase();
-            const provinceCode = provincesInput ? provincesInput.getAttribute("data-province-code") : "";
+    const regenciesHiddenInput = document.getElementById("regencies_id");
+
+    if (regenciesInput && regenciesDropdown && regenciesHiddenInput) {
+        regenciesInput.addEventListener("focus", function(e) {
+            e.stopPropagation();
             
-            if (!provinceCode) {
-                // Restore original HTML jika ada
-                if (originalRegenciesHTML) {
-                    regenciesDropdown.innerHTML = originalRegenciesHTML;
-                }
-                // Tampilkan pesan
-                const items = regenciesDropdown.getElementsByClassName("dropdown-item");
-                for (let i = 0; i < items.length; i++) {
-                    items[i].style.display = "none";
-                }
-                // Tambahkan pesan jika belum ada
-                let messageExists = false;
-                for (let i = 0; i < items.length; i++) {
-                    if (items[i].textContent.includes("Silakan pilih provinsi")) {
-                        messageExists = true;
-                        items[i].style.display = "block";
-                        break;
-                    }
-                }
-                if (!messageExists && originalRegenciesHTML) {
-                    const msgDiv = document.createElement("div");
-                    msgDiv.className = "dropdown-item";
-                    msgDiv.style.cssText = "color: #999; padding: 10px;";
-                    msgDiv.textContent = "Silakan pilih provinsi terlebih dahulu";
-                    regenciesDropdown.appendChild(msgDiv);
-                }
+            const provincesInput = document.getElementById("provinces_text");
+            const provinceCode = provincesInput.getAttribute("data-province-code");
+            
+            if (!provinceCode || provinceCode === "") {
+                regenciesDropdown.innerHTML = "<div class=\"dropdown-item\" style=\"color: #999; padding: 10px;\">Silakan pilih provinsi terlebih dahulu</div>";
+                regenciesDropdown.style.display = "block";
                 return;
             }
             
-            // Restore original HTML jika sudah diubah
-            if (regenciesDropdown.innerHTML !== originalRegenciesHTML) {
-                regenciesDropdown.innerHTML = originalRegenciesHTML;
-            }
-            
+            closeAllDropdowns("regencies_dropdown");
             const items = regenciesDropdown.getElementsByClassName("dropdown-item");
             for (let i = 0; i < items.length; i++) {
-                const text = items[i].getAttribute("data-text");
-                if (!text) continue; // Skip jika bukan item valid
-                const textLower = text.toLowerCase();
-                const itemProvinceCode = items[i].getAttribute("data-province-code");
-                items[i].style.display = (itemProvinceCode === provinceCode && textLower.includes(filter)) ? "block" : "none";
+                items[i].style.display = "block";
             }
-        }
-        
-        regenciesInput.addEventListener("focus", () => {
-            const provinceCode = provincesInput ? provincesInput.getAttribute("data-province-code") : "";
-            closeAllDropdowns("regencies_dropdown");
             regenciesDropdown.style.display = "block";
-            filterRegencies();
+            filterRegenciesOptions();
         });
-        
-        regenciesInput.addEventListener("input", () => {
-            const provinceCode = provincesInput ? provincesInput.getAttribute("data-province-code") : "";
+
+        regenciesInput.addEventListener("input", function(e) {
+            e.stopPropagation();
+            
+            const provincesInput = document.getElementById("provinces_text");
+            const provinceCode = provincesInput.getAttribute("data-province-code");
+            
+            if (!provinceCode || provinceCode === "") {
+                regenciesDropdown.innerHTML = "<div class=\"dropdown-item\" style=\"color: #999; padding: 10px;\">Silakan pilih provinsi terlebih dahulu</div>";
+                regenciesDropdown.style.display = "block";
+                return;
+            }
+            
+            if (regenciesInput.value.trim() === "") {
+                regenciesHiddenInput.value = "";
+            }
             closeAllDropdowns("regencies_dropdown");
+            const items = regenciesDropdown.getElementsByClassName("dropdown-item");
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.display = "block";
+            }
             regenciesDropdown.style.display = "block";
-            filterRegencies();
+            filterRegenciesOptions();
         });
+
+        regenciesInput.addEventListener("click", function(e) {
+            e.stopPropagation();
+            
+            const provincesInput = document.getElementById("provinces_text");
+            const provinceCode = provincesInput.getAttribute("data-province-code");
+            
+            if (!provinceCode || provinceCode === "") {
+                regenciesDropdown.innerHTML = "<div class=\"dropdown-item\" style=\"color: #999; padding: 10px;\">Silakan pilih provinsi terlebih dahulu</div>";
+                regenciesDropdown.style.display = "block";
+                return;
+            }
+            
+            closeAllDropdowns("regencies_dropdown");
+            const items = regenciesDropdown.getElementsByClassName("dropdown-item");
+            for (let i = 0; i < items.length; i++) {
+                items[i].style.display = "block";
+            }
+            regenciesDropdown.style.display = "block";
+            filterRegenciesOptions();
+        });
+
+        let clickOutsideRegenciesHandler = function(e) {
+            const target = e.target;
+            if (regenciesInput && regenciesDropdown) {
+                if (!regenciesInput.contains(target) && !regenciesDropdown.contains(target)) {
+                    setTimeout(function() {
+                        if (regenciesDropdown && regenciesDropdown.style.display === "block") {
+                            regenciesDropdown.style.display = "none";
+                        }
+                    }, 50);
+                }
+            }
+        };
+        document.addEventListener("click", clickOutsideRegenciesHandler, true);
         
-        regenciesDropdown.addEventListener("click", (e) => {
-            if (e.target.classList.contains("dropdown-item") && e.target.getAttribute("data-value")) {
+        regenciesDropdown.addEventListener("click", function(e) {
+            e.stopPropagation();
+            if (e.target.classList.contains("dropdown-item")) {
                 regenciesInput.value = e.target.getAttribute("data-text");
-                regenciesHidden.value = e.target.getAttribute("data-value");
+                regenciesHiddenInput.value = e.target.getAttribute("data-value");
                 regenciesDropdown.style.display = "none";
             }
         });
     }
 
-    // Close dropdowns saat click di luar
-    document.addEventListener("click", (e) => {
-        if (!e.target.closest('.autocomplete-container')) {
-            closeAllDropdowns();
+    function filterRegenciesOptions() {
+        const regenciesInput = document.getElementById("regencies_text");
+        const regenciesDropdown = document.getElementById("regencies_dropdown");
+        const provincesInput = document.getElementById("provinces_text");
+        
+        if (!regenciesInput || !regenciesDropdown || !provincesInput) return;
+        
+        const filterValue = regenciesInput.value.toLowerCase();
+        const provinceCode = provincesInput.getAttribute("data-province-code");
+        
+        if (!provinceCode || provinceCode === "") {
+            regenciesDropdown.innerHTML = "<div class=\"dropdown-item\" style=\"color: #999; padding: 10px;\">Silakan pilih provinsi terlebih dahulu</div>";
+            return;
         }
-    });
+        
+        let items = regenciesDropdown.getElementsByClassName("dropdown-item");
+        
+        if (items.length === 0) {
+            return;
+        }
+        
+        for (let i = 0; i < items.length; i++) {
+            const text = items[i].getAttribute("data-text").toLowerCase();
+            const itemProvinceCode = items[i].getAttribute("data-province-code");
+            
+            if (itemProvinceCode === provinceCode && (!filterValue || filterValue.trim() === "" || text.includes(filterValue))) {
+                items[i].style.display = "block";
+            } else {
+                items[i].style.display = "none";
+            }
+        }
+    }
 });
 </script>
+

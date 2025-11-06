@@ -32,11 +32,17 @@ if (!preg_match('/^[0-9]+$/', $nomor_telepon)) {
     exit;
 }
 
+// Ambil responden_id dari session jika ada (untuk UUID)
+if ($responden_id <= 0 && isset($_SESSION['responden_id_from_uuid']) && $_SESSION['responden_id_from_uuid'] > 0) {
+    $responden_id = (int)$_SESSION['responden_id_from_uuid'];
+}
+
 // Escape untuk mencegah SQL injection
 $nomor_telepon_esc = mysqli_real_escape_string($koneksi, $nomor_telepon);
 
 // Cek apakah nomor telepon sudah ada di database
-// Jika ada responden_id (dari UUID), exclude responden tersebut dari pengecekan
+// Jika ada responden_id (dari UUID atau POST), exclude responden tersebut dari pengecekan
+// Ini memungkinkan user mengupdate nomor telepon mereka sendiri tanpa error duplikat
 $query = "SELECT id, nama FROM respondens WHERE nomor_telepon = '$nomor_telepon_esc' AND status = 1";
 if ($responden_id > 0) {
     $query .= " AND id != $responden_id";
@@ -49,7 +55,7 @@ if ($result && mysqli_num_rows($result) > 0) {
     $row = mysqli_fetch_assoc($result);
     echo json_encode([
         'status' => 'duplicate',
-        'message' => 'Nomor telepon ini sudah terdaftar. Silakan gunakan nomor telepon yang lain.',
+        'message' => 'Nomor telepon ini sudah digunakan. Silakan gunakan nomor telepon yang lain.',
         'existing_name' => $row['nama']
     ]);
 } else {

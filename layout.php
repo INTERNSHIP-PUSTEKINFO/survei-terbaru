@@ -282,16 +282,19 @@
             background: transparent;
             border-radius: 7px;
             margin: 50px 0 30px;
-            padding: 0;
+            padding: 18px 0;
+            cursor: pointer;
+            z-index: 2;
         }
 
         .rating-slider-track::before {
             content: '';
             position: absolute;
             left: 0;
-            top: 0;
+            top: 50%;
+            transform: translateY(-50%);
             width: var(--track-width, 100%);
-            height: 100%;
+            height: 14px;
             background: #e0e0e0;
             border-radius: 7px;
             z-index: 0;
@@ -299,7 +302,9 @@
 
         .rating-slider-progress {
             position: absolute;
-            height: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 14px;
             background: linear-gradient(to right, #30809C 0%, #1A4A72 100%);
             border-radius: 7px;
             width: 0%;
@@ -321,6 +326,7 @@
             z-index: 6;
             padding: 0;
             box-sizing: border-box;
+            pointer-events: none;
         }
 
         .rating-point {
@@ -332,6 +338,7 @@
             flex: 1;
             height: 28px;
             cursor: pointer;
+            pointer-events: auto;
         }
 
         .rating-point-dot {
@@ -1231,6 +1238,7 @@
                     <input type="number" id="captchaAnswer" class="captcha-input" placeholder="Masukkan jawaban" required>
                 </div>
                 <div class="button-group">
+                    <button type="button" class="back-btn" id="cancelCaptchaBtn">Batalkan</button>
                     <button type="button" class="submit-btn" id="verifyAndSubmitBtn">Verifikasi & Kirim</button>
                 </div>
                 <div class="captcha-error" id="captchaError">Jawaban captcha salah. Silakan coba lagi.</div>
@@ -1572,6 +1580,25 @@
             const refreshCaptchaImageBtn = document.getElementById('refreshCaptchaImage');
             if (refreshCaptchaImageBtn) {
                 refreshCaptchaImageBtn.onclick = generateCaptcha;
+            }
+
+            // Tombol batalkan captcha
+            const cancelCaptchaBtn = document.getElementById('cancelCaptchaBtn');
+            if (cancelCaptchaBtn) {
+                cancelCaptchaBtn.onclick = function() {
+                    // Tutup modal captcha
+                    document.getElementById('captchaModal').style.display = 'none';
+                    // Bersihkan input captcha
+                    const captchaAnswerInput = document.getElementById('captchaAnswer');
+                    if (captchaAnswerInput) {
+                        captchaAnswerInput.value = '';
+                    }
+                    // Hapus error message jika ada
+                    const captchaError = document.getElementById('captchaError');
+                    if (captchaError) {
+                        captchaError.classList.remove('show');
+                    }
+                };
             }
             
             // Load captcha saat pertama kali modal dibuka
