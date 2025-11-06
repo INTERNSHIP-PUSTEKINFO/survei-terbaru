@@ -1,6 +1,11 @@
 RewriteEngine On
 RewriteBase /survei-nala/
 
+# Route untuk format: /responden
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^responden$ responden.php [L,QSA]
+
 # Route untuk format: /uuid/{uuid}
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

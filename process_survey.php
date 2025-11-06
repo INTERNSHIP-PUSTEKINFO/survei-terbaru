@@ -66,8 +66,8 @@ $responden_id_from_uuid = isset($_SESSION['responden_id_from_uuid']) ? (int)$_SE
 $survey_uuid = isset($_SESSION['survey_uuid']) ? trim($_SESSION['survey_uuid']) : null;
 
 // Validate biodata
-if (empty($nama) || $usia <= 0 || $jenis_kelamin <= 0 || $pendidikan_id <= 0 || $pekerjaan_id <= 0 || $penghasilan_id <= 0) {
-    echo json_encode(['status' => 'error', 'message' => 'Data pribadi tidak lengkap']);
+if (empty($nama) || $usia <= 0 || $usia > 100 || $jenis_kelamin <= 0 || $pendidikan_id <= 0 || $pekerjaan_id <= 0 || $penghasilan_id <= 0) {
+    echo json_encode(['status' => 'error', 'message' => 'Data pribadi tidak lengkap atau usia tidak valid. Usia harus antara 1-100 tahun.']);
     exit;
 }
 
@@ -260,19 +260,6 @@ try {
                     
                     $db->runSQL($insert_jawaban);
                 }
-            }
-            
-            $lainnya_key = $key . '_lainnya';
-            if (isset($surveyData[$lainnya_key]) && !empty($surveyData[$lainnya_key])) {
-                $lainnya_value = trim($surveyData[$lainnya_key]);
-                $lainnya_esc = addslashes($lainnya_value);
-                
-                $insert_lainnya = "
-                    INSERT INTO jawaban_responden (responden_id, kuesioner_id, jawaban_teks, tanggal_jawab, status, user_input, tanggal_input)
-                    VALUES ($responden_id, $kuesioner_id, 'Lainnya: $lainnya_esc', NOW(), 1, 'survey_online', NOW())
-                ";
-                
-                $db->runSQL($insert_lainnya);
             }
         }
     }

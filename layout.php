@@ -453,10 +453,10 @@
             margin-top: 30px;
         }
 
+        .button-group .back-btn,
         .button-group .submit-btn {
             flex: 1;
             margin-top: 0;
-            width: 100%;
         }
 
         .submit-btn {
@@ -1191,8 +1191,16 @@
             
             <!-- Deskripsi survei -->
             <div class="survey-description">
-                Survei ini bertujuan untuk mengetahui tingkat efisiensi penggunaan pembayaran digital dibandingkan dengan transaksi tunai dalam kegiatan sehari-hari. Melalui survei ini, kami ingin memahami persepsi, kebiasaan, serta pengalaman masyarakat dalam menggunakan berbagai metode pembayaran seperti e-wallet, mobile banking, atau kartu debit/kredit.<br><br>
-                Hasil survei ini akan digunakan untuk menilai sejauh mana pembayaran digital dapat meningkatkan kecepatan, kemudahan, dan keamanan transaksi dibandingkan dengan pembayaran tunai, serta faktor-faktor apa saja yang mempengaruhi preferensi pengguna.
+                <?php 
+                if (isset($survey_description)) {
+                    // Jika ada deskripsi khusus (untuk form responden), gunakan itu
+                    echo htmlspecialchars($survey_description);
+                } else {
+                    // Default deskripsi untuk survei biasa
+                    echo "Survei ini bertujuan untuk mengetahui tingkat efisiensi penggunaan pembayaran digital dibandingkan dengan transaksi tunai dalam kegiatan sehari-hari. Melalui survei ini, kami ingin memahami persepsi, kebiasaan, serta pengalaman masyarakat dalam menggunakan berbagai metode pembayaran seperti e-wallet, mobile banking, atau kartu debit/kredit.<br><br>";
+                    echo "Hasil survei ini akan digunakan untuk menilai sejauh mana pembayaran digital dapat meningkatkan kecepatan, kemudahan, dan keamanan transaksi dibandingkan dengan pembayaran tunai, serta faktor-faktor apa saja yang mempengaruhi preferensi pengguna.";
+                }
+                ?>
             </div>
         </div>
 
@@ -1311,7 +1319,34 @@
                     alert('Mohon isi semua pertanyaan yang wajib diisi');
                     return false;
                 }
+                
+                // Cek custom validity (untuk nomor telepon duplikat)
+                if (!input.checkValidity()) {
+                    let customError = input.validationMessage;
+                    if (customError && customError !== '') {
+                        alert(customError);
+                        input.focus();
+                        return false;
+                    }
+                }
             }
+            
+            // Validasi khusus untuk nomor telepon (jika di part1)
+            if (currentPart === 1) {
+                const nomorTeleponInput = document.getElementById('nomor_telepon');
+                if (nomorTeleponInput && nomorTeleponInput.value.trim() !== '') {
+                    // Cek custom validity untuk nomor telepon
+                    if (!nomorTeleponInput.checkValidity()) {
+                        const nomorTeleponError = document.getElementById('nomor_telepon_error');
+                        if (nomorTeleponError && nomorTeleponError.textContent) {
+                            alert(nomorTeleponError.textContent);
+                            nomorTeleponInput.focus();
+                            return false;
+                        }
+                    }
+                }
+            }
+            
             return true;
         }
 
@@ -1689,25 +1724,6 @@
                         alert('Terjadi kesalahan. Silakan coba lagi. Error: ' + error.message);
                     });
             };
-        });
-
-        // Handle "Lainnya" radio button visibility for Pekerjaan
-        document.querySelectorAll('input[name="pekerjaan_id"]').forEach(radio => {
-            radio.addEventListener('change', function() {
-                let pekerjaanOtherInput = document.getElementById('pekerjaanLainnyaText');
-                let isLainnya = this.value === '7'; // Assuming ID 7 is "Lainnya"
-                
-                if (pekerjaanOtherInput) {
-                    if (isLainnya) {
-                        pekerjaanOtherInput.style.display = 'block';
-                        pekerjaanOtherInput.required = true;
-                    } else {
-                        pekerjaanOtherInput.style.display = 'none';
-                        pekerjaanOtherInput.required = false;
-                        pekerjaanOtherInput.value = '';
-                    }
-                }
-            });
         });
 
         // Handle next button for part 1

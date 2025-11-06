@@ -821,6 +821,11 @@ if (!is_array($regencies)) {
  $survei_id_untuk_submit = isset($survei_id_asli) ? $survei_id_asli : $survei_id_untuk_kuesioner;
 
  $content .= '<input type="hidden" name="survei_id" value="' . $survei_id_untuk_submit . '">';
+ 
+ // Tambahkan hidden input untuk responden_id jika ada (untuk validasi nomor telepon)
+ if (isset($responden_data) && isset($responden_data['id'])) {
+     $content .= '<input type="hidden" name="responden_id" id="responden_id" value="' . (int)$responden_data['id'] . '">';
+ }
 
 
 
@@ -854,9 +859,9 @@ if (!is_array($regencies)) {
 
         <div class="question-card">
 
-            <div class="question-title">Nama Lengkap <span class="required">*</span></div>
+            <div class="question-title">Nama Lengkap</div>
 
-            <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap Anda" value="' . $nama_value . '" required>
+            <input type="text" id="nama" name="nama" placeholder="Masukkan nama lengkap Anda" value="' . $nama_value . '" maxlength="100" pattern="[A-Za-z\s]+">
 
         </div>';
 
@@ -872,7 +877,7 @@ if (!is_array($regencies)) {
 
             <div class="question-title">Usia <span class="required">*</span></div>
 
-            <input type="number" id="usia" name="usia" placeholder="Masukkan usia Anda" min="1" max="120" value="' . $umur_value . '" required>
+            <input type="number" id="usia" name="usia" placeholder="Masukkan usia Anda" min="1" max="100" value="' . $umur_value . '" required>
 
         </div>';
 
@@ -1026,8 +1031,6 @@ if ($responden_data && $pendidikan_id_value > 0) {
 
             </div>
 
-            <input type="text" id="pekerjaanLainnyaText" name="pekerjaan_lainnya" placeholder="Sebutkan pekerjaan Anda" style="display: none; margin-top: 12px;">
-
         </div>';
 
 
@@ -1088,7 +1091,8 @@ if ($responden_data && $pendidikan_id_value > 0) {
 
             <div class="question-title">Nomor Telepon <span class="required">*</span></div>
 
-            <input type="text" id="nomor_telepon" name="nomor_telepon" placeholder="Masukkan nomor telepon Anda" value="' . $nomor_telepon_value . '" required>
+            <input type="text" id="nomor_telepon" name="nomor_telepon" placeholder="Masukkan nomor telepon Anda" value="' . $nomor_telepon_value . '" minlength="10" maxlength="13" pattern="[0-9]+" required>
+            <div id="nomor_telepon_error" style="color: #d32f2f; font-size: 12px; margin-top: 5px; display: none;"></div>
 
 </div>';
 
@@ -1546,14 +1550,174 @@ $content .= '
     
     
     document.addEventListener("DOMContentLoaded", function() {
-
-        // Restore data saat halaman dimuat
-
+        // Cek apakah ada UUID di URL (untuk skip restore dari sessionStorage)
+        const currentPath = window.location.pathname;
+        const urlParams = new URLSearchParams(window.location.search);
+        let uuidFromUrl = urlParams.get("uuid");
+        
+        if (!uuidFromUrl && currentPath.includes("/uuid/")) {
+            const parts = currentPath.split("/uuid/");
+            if (parts.length > 1) {
+                uuidFromUrl = parts[1].split("/")[0];
+            }
+        }
+        
+        // Cek apakah UUID valid (64 karakter hex)
+        const uuidRegex = /^[a-f0-9]+$/i;
+        const hasValidUUID = uuidFromUrl && uuidFromUrl.length === 64 && uuidRegex.test(uuidFromUrl);
+        
+        // Cek UUID yang tersimpan di sessionStorage
+        const savedUUID = sessionStorage.getItem("survey_uuid");
+        
+        // Jika ada UUID di URL dan berbeda dengan yang tersimpan, clear sessionStorage
+        if (hasValidUUID) {
+            if (savedUUID && savedUUID !== uuidFromUrl) {
+                // UUID berbeda, clear sessionStorage untuk menghindari data dari link sebelumnya
+                sessionStorage.removeItem("surveyFormData");
+                sessionStorage.setItem("survey_uuid", uuidFromUrl);
+            } else if (!savedUUID) {
+                // Pertama kali dengan UUID ini, simpan UUID
+                sessionStorage.setItem("survey_uuid", uuidFromUrl);
+            }
+            // Skip restore karena data sudah di-pre-fill dari database (PHP)
+            // Jangan restore dari sessionStorage karena akan overwrite data dari UUID
+        } else {
+            // Tidak ada UUID, restore dari sessionStorage seperti biasa
         restoreFormDataFromSession();
+        }
 
-        
+        // Validasi nama: hanya huruf dan spasi
+        const namaInput = document.getElementById("nama");
+        if (namaInput) {
+            namaInput.addEventListener("input", function() {
+                // Hapus karakter selain huruf dan spasi
+                this.value = this.value.replace(/[^A-Za-z\s]/g, "");
+                // Batasi maksimal 100 karakter
+                if (this.value.length > 100) {
+                    this.value = this.value.substring(0, 100);
+                }
+            });
+        }
 
-        
+        // Validasi usia: maksimal 100
+        const usiaInput = document.getElementById("usia");
+        if (usiaInput) {
+            usiaInput.addEventListener("input", function() {
+                // Hapus karakter selain angka
+                this.value = this.value.replace(/[^0-9]/g, "");
+                // Batasi maksimal 100
+                const usiaValue = parseInt(this.value) || 0;
+                if (usiaValue > 100) {
+                    this.value = 100;
+                }
+            });
+        }
+
+        // Validasi nomor telepon: cek duplikat
+        const nomorTeleponInput = document.getElementById("nomor_telepon");
+        const nomorTeleponError = document.getElementById("nomor_telepon_error");
+        let phoneCheckTimeout = null;
+        let isPhoneValid = false;
+
+        if (nomorTeleponInput && nomorTeleponError) {
+            // Validasi: hanya angka, minimal 10, maksimal 13
+            nomorTeleponInput.addEventListener("input", function() {
+                // Hapus karakter selain angka
+                this.value = this.value.replace(/[^0-9]/g, "");
+                
+                // Batasi maksimal 13 karakter
+                if (this.value.length > 13) {
+                    this.value = this.value.substring(0, 13);
+                }
+            });
+            
+            // Cek nomor telepon saat user selesai mengetik (debounce)
+            nomorTeleponInput.addEventListener("input", function() {
+                clearTimeout(phoneCheckTimeout);
+                const phoneValue = this.value.trim();
+                
+                // Reset error message
+                nomorTeleponError.style.display = "none";
+                nomorTeleponError.textContent = "";
+                nomorTeleponInput.style.borderColor = "";
+                isPhoneValid = false;
+
+                // Validasi panjang minimal 10
+                if (phoneValue.length > 0 && phoneValue.length < 10) {
+                    nomorTeleponError.textContent = "Nomor telepon minimal 10 angka";
+                    nomorTeleponError.style.display = "block";
+                    nomorTeleponInput.style.borderColor = "#d32f2f";
+                    nomorTeleponInput.setCustomValidity("Nomor telepon minimal 10 angka");
+                    isPhoneValid = false;
+                    return;
+                }
+
+                // Jika kosong atau belum mencapai minimal, tidak perlu cek duplikat
+                if (phoneValue.length === 0 || phoneValue.length < 10) {
+                    return;
+                }
+
+                // Debounce: tunggu 500ms setelah user berhenti mengetik
+                phoneCheckTimeout = setTimeout(function() {
+                    checkPhoneNumber(phoneValue);
+                }, 500);
+            });
+
+            // Cek nomor telepon saat blur (saat user keluar dari field)
+            nomorTeleponInput.addEventListener("blur", function() {
+                const phoneValue = this.value.trim();
+                if (phoneValue.length > 0) {
+                    checkPhoneNumber(phoneValue);
+                }
+            });
+        }
+
+        // Fungsi untuk cek nomor telepon
+        function checkPhoneNumber(phoneNumber) {
+            // Cek apakah ada responden_id dari UUID di session PHP
+            // Kita akan kirim via hidden input atau ambil dari URL
+            const formData = new FormData();
+            formData.append("nomor_telepon", phoneNumber);
+            
+            // Coba ambil responden_id dari hidden input atau session
+            const respondenIdInput = document.querySelector("input[name=\"responden_id\"]");
+            if (respondenIdInput) {
+                formData.append("responden_id", respondenIdInput.value);
+            }
+
+            // Gunakan path absolut untuk menghindari masalah dengan URL UUID
+            const currentPath = window.location.pathname;
+            let checkPhoneUrl = "check_phone.php";
+            if (currentPath.includes("/uuid/")) {
+                const basePath = currentPath.split("/uuid/")[0];
+                checkPhoneUrl = basePath + "/check_phone.php";
+            }
+
+            fetch(checkPhoneUrl, {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "duplicate") {
+                    // Nomor telepon sudah ada
+                    nomorTeleponError.textContent = data.message;
+                    nomorTeleponError.style.display = "block";
+                    nomorTeleponInput.style.borderColor = "#d32f2f";
+                    nomorTeleponInput.setCustomValidity(data.message);
+                    isPhoneValid = false;
+                } else if (data.status === "available") {
+                    // Nomor telepon tersedia
+                    nomorTeleponError.style.display = "none";
+                    nomorTeleponInput.style.borderColor = "";
+                    nomorTeleponInput.setCustomValidity("");
+                    isPhoneValid = true;
+                }
+            })
+            .catch(error => {
+                console.error("Error checking phone number:", error);
+            });
+        }
 
         // Tambahan agar dropdown lain tertutup saat salah satu dibuka
 
@@ -2389,8 +2553,13 @@ if ($kuesioner) {
         
         
         
-        // Hanya tombol Lanjutkan / Kirim Survey, tanpa tombol kembali
+        // Tombol Kembali (untuk semua section pertanyaan, kembali ke section sebelumnya atau ke informasi pribadi)
+            $prev_section = $section_num - 1;
+            $content .= '<button type="button" class="back-btn" onclick="saveAndGoToSection(' . $prev_section . ')">← Kembali</button>';
         
+        
+        
+        // Tombol Lanjutkan / Kirim Survey
         if ($section < $total_sections - 1) {
 
             $next_section = $section_num + 1;
@@ -2532,26 +2701,7 @@ function renderPilihan($q_id, $options, $field_name) {
                 <label for="' . $opt_id . '">' . $opt_text . '</label>
 
             </div>';
-
             
-            
-            if (strtolower($opt_text) === 'lainnya') {
-
-                $html .= '
-
-            <input type="text" id="' . $opt_id . '_other" name="' . $field_name . '_lainnya" placeholder="Sebutkan..." style="display: none; margin-top: 12px;">
-
-            <script>
-
-                document.getElementById("' . $opt_id . '").addEventListener("change", function() {
-
-                    document.getElementById("' . $opt_id . '_other").style.display = this.checked ? "block" : "none";
-
-                });
-
-            </script>';
-
-            }
 
         }
 
@@ -3262,26 +3412,7 @@ function renderCheckbox($q_id, $options, $field_name) {
                 <label for="' . $opt_id . '">' . $opt_text . '</label>
 
             </div>';
-
             
-            
-            if (strtolower($opt_text) === 'lainnya') {
-
-                $html .= '
-
-            <input type="text" id="' . $opt_id . '_other" name="' . $field_name . '_lainnya" placeholder="Sebutkan..." style="display: none; margin-top: 12px;">
-
-            <script>
-
-                document.getElementById("' . $opt_id . '").addEventListener("change", function() {
-
-                    document.getElementById("' . $opt_id . '_other").style.display = this.checked ? "block" : "none";
-
-                });
-
-            </script>';
-
-            }
 
         }
 

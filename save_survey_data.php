@@ -35,6 +35,15 @@ try {
     // Ambil data biodata
     $nama = isset($_POST['nama']) ? trim($_POST['nama']) : '';
     $usia = isset($_POST['usia']) ? (int)$_POST['usia'] : 0;
+    
+    // Validasi usia maksimal 100
+    if ($usia > 100) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Usia tidak valid. Usia harus antara 1-100 tahun.'
+        ]);
+        exit;
+    }
     $jenis_kelamin_text = isset($_POST['jenis_kelamin']) ? trim($_POST['jenis_kelamin']) : '';
     // Konversi teks ke integer: Laki-laki = 1, Perempuan = 2
     $jenis_kelamin = 0;
@@ -249,9 +258,22 @@ try {
     
     // Jika masih tidak ada responden_id, coba buat responden baru dari data yang ada
     // Buat responden baru jika ada minimal data biodata ATAU ada jawaban kuesioner
+    // Cek dulu apakah sudah ada responden draft dari session untuk menghindari duplikasi
     if ((!$responden_id || $responden_id <= 0) && (!empty($nama) || $usia > 0 || $jenis_kelamin > 0 || $hasJawabanKuesioner)) {
-        // Buat responden baru jika ada minimal data
-        if (!empty($nama) || $usia > 0 || $jenis_kelamin > 0 || $hasJawabanKuesioner) {
+        // Cek apakah sudah ada responden draft untuk session ini
+        $sessionId = session_id();
+        $sessionEscaped = mysqli_real_escape_string($koneksi, $sessionId);
+        $checkExistingDraft = "SELECT id FROM respondens WHERE user_input = 'survey_online_draft_{$sessionEscaped}' AND status = 0 ORDER BY tanggal_input DESC LIMIT 1";
+        $resultCheckDraft = mysqli_query($koneksi, $checkExistingDraft);
+        
+        if ($resultCheckDraft && mysqli_num_rows($resultCheckDraft) > 0) {
+            // Gunakan responden draft yang sudah ada
+            $rowDraft = mysqli_fetch_assoc($resultCheckDraft);
+            $responden_id = (int)$rowDraft['id'];
+            $_SESSION['responden_id'] = $responden_id;
+            error_log("Using existing draft responden_id=$responden_id");
+        } else {
+            // Buat responden baru jika belum ada
             $nama_esc = mysqli_real_escape_string($koneksi, $nama);
             $nomor_telepon_esc = mysqli_real_escape_string($koneksi, $nomor_telepon);
             
@@ -261,6 +283,9 @@ try {
             if (!empty($nama)) {
                 $insert_fields[] = "nama";
                 $insert_values[] = "'{$nama_esc}'";
+            } else {
+                $insert_fields[] = "nama";
+                $insert_values[] = "'Survey Respondent'";
             }
             if ($usia > 0) {
                 $insert_fields[] = "umur";
@@ -302,19 +327,12 @@ try {
             $insert_fields[] = "status";
             $insert_values[] = "0";
             
-            // Jika tidak ada field yang diisi, set minimal nama
-            if (empty($insert_fields) || count($insert_fields) == 1) {
-                $insert_fields = ["nama", "status"];
-                $insert_values = ["'Survey Respondent'", "0"];
-            }
-            
             // Gunakan UUID jika ada, atau session ID
             if ($responden_id_from_uuid && $responden_id_from_uuid > 0) {
                 // Jika ada UUID, gunakan responden_id dari UUID (tidak perlu insert)
                 $responden_id = $responden_id_from_uuid;
+                error_log("Using responden_id from UUID: $responden_id");
             } else {
-                $sessionId = session_id();
-                $sessionEscaped = mysqli_real_escape_string($koneksi, $sessionId);
                 $insert_fields[] = "user_input";
                 $insert_values[] = "'survey_online_draft_{$sessionEscaped}'";
                 
@@ -325,7 +343,10 @@ try {
                 $resultInsert = mysqli_query($koneksi, $insertResponden);
                 if ($resultInsert) {
                     $responden_id = mysqli_insert_id($koneksi);
+                    $_SESSION['responden_id'] = $responden_id;
+                    error_log("Created new responden_id=$responden_id");
                 } else {
+                    error_log("Failed to create responden: " . mysqli_error($koneksi));
                     throw new Exception('Gagal membuat responden baru: ' . mysqli_error($koneksi));
                 }
             }
@@ -354,38 +375,36 @@ try {
     
     error_log("Total jawaban found: $jawabanCount");
     
-    // Jika ada jawaban kuesioner tapi belum ada responden_id, buat responden baru minimal
-    if ($hasJawaban && (!$responden_id || $responden_id <= 0)) {
-        error_log("Creating minimal responden for jawaban kuesioner");
-        $sessionId = session_id();
-        $sessionEscaped = mysqli_real_escape_string($koneksi, $sessionId);
-        $insertMinimal = "INSERT INTO respondens (nama, status, user_input, tanggal_input) 
-            VALUES ('Survey Respondent', 0, 'survey_online_draft_{$sessionEscaped}', NOW())";
-        $resultMinimal = mysqli_query($koneksi, $insertMinimal);
-        if ($resultMinimal) {
-            $responden_id = mysqli_insert_id($koneksi);
-            $_SESSION['responden_id'] = $responden_id;
-            error_log("Created minimal responden_id=$responden_id");
-        } else {
-            error_log("Failed to create minimal responden: " . mysqli_error($koneksi));
-        }
-    }
-    
     if ($responden_id && $responden_id > 0) {
         $_SESSION['responden_id'] = $responden_id;
         
         error_log("Responden ID confirmed: $responden_id");
         
         // Hapus jawaban lama untuk responden ini (untuk update) - hanya jika ada jawaban baru
+        // Gunakan DELETE ... INSERT pattern untuk menghindari duplikasi
         if ($hasJawaban) {
-            $deleteOldAnswers = "DELETE FROM jawaban_responden WHERE responden_id = {$responden_id} AND status = 0";
-            $resultDelete = mysqli_query($koneksi, $deleteOldAnswers);
-            if (!$resultDelete) {
-                // Log warning tapi jangan throw error karena ini hanya cleanup
-                error_log('Warning: Gagal delete jawaban lama: ' . mysqli_error($koneksi));
-            } else {
-                $deletedCount = mysqli_affected_rows($koneksi);
-                error_log("Deleted old draft answers for responden_id=$responden_id (count: $deletedCount)");
+            // Hapus semua jawaban draft untuk kuesioner yang akan di-update
+            // Hanya hapus yang akan di-replace, bukan semua
+            $kuesioner_ids_to_update = array();
+            foreach ($_POST as $key => $value) {
+                if (strpos($key, 'kuesioner_') === 0) {
+                    $kuesioner_id = (int)str_replace('kuesioner_', '', $key);
+                    if ($kuesioner_id > 0) {
+                        $kuesioner_ids_to_update[] = $kuesioner_id;
+                    }
+                }
+            }
+            
+            if (!empty($kuesioner_ids_to_update)) {
+                $kuesioner_ids_str = implode(',', $kuesioner_ids_to_update);
+                $deleteOldAnswers = "DELETE FROM jawaban_responden WHERE responden_id = {$responden_id} AND status = 0 AND kuesioner_id IN ({$kuesioner_ids_str})";
+                $resultDelete = mysqli_query($koneksi, $deleteOldAnswers);
+                if (!$resultDelete) {
+                    error_log('Warning: Gagal delete jawaban lama: ' . mysqli_error($koneksi));
+                } else {
+                    $deletedCount = mysqli_affected_rows($koneksi);
+                    error_log("Deleted old draft answers for responden_id=$responden_id, kuesioner_ids: {$kuesioner_ids_str} (count: $deletedCount)");
+                }
             }
         }
 
@@ -413,6 +432,8 @@ try {
                     // Handle checkbox (multiple options)
                     foreach ($value as $opt_id) {
                         $opt_id_int = (int)$opt_id;
+                        if ($opt_id_int <= 0) continue;
+                        
                         $option = $db->getITEM("SELECT teks_opsi FROM opsi_jawaban WHERE id = $opt_id_int");
                         if ($option) {
                             $jawaban_teks = $option['teks_opsi'];
@@ -420,19 +441,22 @@ try {
                             
                             $jawaban_esc = mysqli_real_escape_string($koneksi, $jawaban_teks);
                             
-                            $insertJawaban = "INSERT INTO jawaban_responden (responden_id, kuesioner_id, opsi_jawaban_id, jawaban_teks, tanggal_jawab, status, user_input, tanggal_input)
-                                VALUES ({$responden_id}, {$kuesioner_id}, {$opsi_jawaban_id_value}, '{$jawaban_esc}', NOW(), 0, 'survey_online_autosave', NOW())";
+                            // Cek dulu apakah sudah ada untuk menghindari duplikasi
+                            $checkExisting = "SELECT id FROM jawaban_responden WHERE responden_id = {$responden_id} AND kuesioner_id = {$kuesioner_id} AND opsi_jawaban_id = {$opsi_jawaban_id_value} AND status = 0";
+                            $existingResult = mysqli_query($koneksi, $checkExisting);
                             
-                            error_log("Inserting checkbox jawaban: responden_id=$responden_id, kuesioner_id=$kuesioner_id, opsi_jawaban_id=$opsi_jawaban_id_value, jawaban_teks=$jawaban_esc");
-                            
-                            $resultInsertJawaban = mysqli_query($koneksi, $insertJawaban);
-                            if (!$resultInsertJawaban) {
-                                $error_msg = mysqli_error($koneksi);
-                                error_log('Error insert jawaban checkbox: ' . $error_msg . ' - Query: ' . $insertJawaban);
-                                // Jangan throw error untuk checkbox karena bisa multiple insert
-                            } else {
-                                error_log("Successfully inserted checkbox jawaban for kuesioner_id=$kuesioner_id, responden_id=$responden_id");
-                                $savedCount++;
+                            if (!$existingResult || mysqli_num_rows($existingResult) == 0) {
+                                $insertJawaban = "INSERT INTO jawaban_responden (responden_id, kuesioner_id, opsi_jawaban_id, jawaban_teks, tanggal_jawab, status, user_input, tanggal_input)
+                                    VALUES ({$responden_id}, {$kuesioner_id}, {$opsi_jawaban_id_value}, '{$jawaban_esc}', NOW(), 0, 'survey_online_autosave', NOW())";
+                                
+                                $resultInsertJawaban = mysqli_query($koneksi, $insertJawaban);
+                                if (!$resultInsertJawaban) {
+                                    $error_msg = mysqli_error($koneksi);
+                                    error_log('Error insert jawaban checkbox: ' . $error_msg . ' - Query: ' . $insertJawaban);
+                                } else {
+                                    error_log("Successfully inserted checkbox jawaban for kuesioner_id=$kuesioner_id, responden_id=$responden_id");
+                                    $savedCount++;
+                                }
                             }
                         }
                     }
@@ -469,6 +493,10 @@ try {
                     
                     $jawaban_esc = mysqli_real_escape_string($koneksi, $jawaban_teks);
                     
+                    // Untuk non-checkbox, hapus dulu jawaban lama untuk kuesioner ini, lalu insert baru
+                    $deleteSpecific = "DELETE FROM jawaban_responden WHERE responden_id = {$responden_id} AND kuesioner_id = {$kuesioner_id} AND status = 0";
+                    mysqli_query($koneksi, $deleteSpecific);
+                    
                     $opsi_value = ($opsi_jawaban_id_value !== null ? $opsi_jawaban_id_value : 'NULL');
                     $insertJawaban = "INSERT INTO jawaban_responden (responden_id, kuesioner_id, opsi_jawaban_id, jawaban_teks, tanggal_jawab, status, user_input, tanggal_input)
                         VALUES ({$responden_id}, {$kuesioner_id}, {$opsi_value}, '{$jawaban_esc}', NOW(), 0, 'survey_online_autosave', NOW())";
@@ -485,23 +513,6 @@ try {
                         }
                     } else {
                         error_log("Successfully inserted jawaban for kuesioner_id=$kuesioner_id, responden_id=$responden_id");
-                        $savedCount++;
-                    }
-                }
-                
-                // Handle "Lainnya" field
-                $lainnya_key = $key . '_lainnya';
-                if (isset($_POST[$lainnya_key]) && !empty(trim($_POST[$lainnya_key]))) {
-                    $lainnya_value = trim($_POST[$lainnya_key]);
-                    $lainnya_esc = mysqli_real_escape_string($koneksi, $lainnya_value);
-                    
-                    $insertLainnya = "INSERT INTO jawaban_responden (responden_id, kuesioner_id, jawaban_teks, tanggal_jawab, status, user_input, tanggal_input)
-                        VALUES ({$responden_id}, {$kuesioner_id}, 'Lainnya: {$lainnya_esc}', NOW(), 0, 'survey_online_autosave', NOW())";
-                    
-                    $resultInsertLainnya = mysqli_query($koneksi, $insertLainnya);
-                    if (!$resultInsertLainnya) {
-                        error_log('Error insert jawaban lainnya: ' . mysqli_error($koneksi));
-                    } else {
                         $savedCount++;
                     }
                 }
